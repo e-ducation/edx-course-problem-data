@@ -271,6 +271,13 @@ class SectionView(APIView):
 
     authentication_classes = (OAuth2AuthenticationAllowInactiveUser,)
 
+    def has_problem(self, xblock):
+        structure = BlockStructure(xblock.scope_ids.usage_id._to_string())
+        xblocks = structure.xblocks
+        results = filter(lambda x: x.scope_ids.block_type == "problem", xblocks)
+
+        return len(results) > 0
+
     def to_represent(self, xblock):
         data = {
             'id': xblock.scope_ids.usage_id._to_string(),
@@ -281,17 +288,20 @@ class SectionView(APIView):
     def get(self, request, *args, **kwargs):
         try:
             course_id = request.query_params.get('course_id', None)
+
             if course_id is None or course_id == u"":
                 return Response()
-            else:
-                course = BlockStructure(course_id)
-                xblocks = course.xblocks
 
-                # each xblock has block_type
-                results = filter(
-                    lambda x: x.scope_ids.block_type == "sequential", xblocks)
-                results = filter(lambda x: hasattr(
-                    x, 'get_children') and x.get_children() != [], results)
+            course = BlockStructure(course_id)
+            xblocks = course.xblocks
+            # each xblock has block_type
+            results = filter(
+                lambda x: x.scope_ids.block_type == "sequential", xblocks)
+            results = filter(lambda x: hasattr(
+                x, 'get_children') and x.get_children() != [], results)
+
+            # filter no problem section
+            results = filter(self.has_problem, results)
 
             chapters = map(self.to_represent, results)
             return Response(chapters)
