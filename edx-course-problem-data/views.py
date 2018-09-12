@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 from xmodule.modulestore.split_mongo.caching_descriptor_system import ItemNotFoundError
 from xmodule.modulestore.mongo.draft import DraftModuleStore
 
+import util_code
 from .models import BlockStructure
 from .pagination import BlockNumberPagination
 from .exceptions import NotSupportType
@@ -133,14 +134,14 @@ class CourseView(APIView):
         import datetime
 
         today = datetime.date.today()
-        queryset = CourseOverview.objects.all().filter(start__lte=today, end__gte=today)
+        queryset = CourseOverview.objects.all().filter(start__lte=today, end__gte=today).order_by('display_name')
 
         title = request.query_params.get('title', None)
         if title is not None:
             queryset = queryset.filter(display_name__contains=title)
 
         represent = map(self.to_represent, queryset)
-        return Response(represent)
+        return Response(represent, status=status.HTTP_200_OK)
 
 
 class ProblemView(APIView):
@@ -205,7 +206,6 @@ class ProblemView(APIView):
 
     def get(self, request, *args, **kwargs):
 
-        user = request.user
         block_id = request.query_params.get('block_id', None)
         problem_type = request.query_params.get('problem_type', None)
         search_text = request.query_params.get('text', None)
@@ -213,10 +213,20 @@ class ProblemView(APIView):
         try:
             structure = BlockStructure(block_id)
             xblocks = structure.xblocks
+        except ItemNotFoundError as ex:
+            log.error(ex)
+            data = {
+                'msg': _("Course id is invalid."),
+                'code': util_code.COURSE_ID_INVALID
+            }
+            return Response(data, status=status.HTTP_200_OK)
         except TypeError as ex:
             log.error(ex)
-            msg = _("Block id is required.")
-            return Response(msg)
+            data = {
+                'msg': _("Block id is required."),
+                'code': util_code.BLOCK_ID_REQUIRED
+            }
+            return Response(data, status=status.HTTP_200_OK)
 
         # 按题型过滤
         # 只有题目才有 problem_types
@@ -224,17 +234,14 @@ class ProblemView(APIView):
             s = set()
             s.add(problem_type)
             xblocks = filter(lambda x: hasattr(x, 'problem_types')
-                             and x.problem_types == s, xblocks)
+                                       and x.problem_types == s, xblocks)
 
         # 允许展示的题目类型
-        allowed_type = set(
-            ['stringresponse', 'multiplechoiceresponse', 'choiceresponse'])
-        xblocks = filter(lambda x: hasattr(x, 'problem_types')
-                         and x.problem_types & allowed_type != set(), xblocks)
+        allowed_type = set(['stringresponse', 'multiplechoiceresponse', 'choiceresponse'])
+        xblocks = filter(lambda x: hasattr(x, 'problem_types') and x.problem_types & allowed_type != set(), xblocks)
 
         # 只返回题目
-        problems = filter(lambda x: x.scope_ids.block_type ==
-                          'problem', xblocks)
+        problems = filter(lambda x: x.scope_ids.block_type == 'problem', xblocks)
 
         # 匹配 text
         if search_text is not None:
@@ -278,11 +285,35 @@ class SectionView(APIView):
 
         return len(results) > 0
 
+    def count(self, xblock_id):
+        structure = BlockStructure(xblock_id)
+        xblocks = structure.xblocks
+        xblocks = filter(lambda x: x.scope_ids.block_type ==
+                                   'problem', xblocks)
+
+        result = {}
+        types_list = ["multiplechoiceresponse",
+                      "choiceresponse", "stringresponse"]
+        for ptype in types_list:
+            s = set()
+            s.add(ptype)
+
+            filter_problems = filter(lambda x: hasattr(
+                x, 'problem_types') and x.problem_types == s, xblocks)
+            count = len(filter_problems)
+            temp = {}
+            temp[ptype] = count
+            result.update(temp)
+
+        return result
+
     def to_represent(self, xblock):
-        data = {
-            'id': xblock.scope_ids.usage_id._to_string(),
+        xblock_id = xblock.scope_ids.usage_id._to_string()
+        data = self.count(xblock_id)
+        data.update({
+            'id': xblock_id,
             'name': xblock.display_name,
-        }
+        })
         return data
 
     def get(self, request, *args, **kwargs):
@@ -306,12 +337,17 @@ class SectionView(APIView):
             chapters = map(self.to_represent, results)
             return Response(chapters)
         except InvalidKeyError as ex:
-            msg = _("Invalid course id")
-            return Response(msg)
+            data = {
+                'msg': _("Course id is invalid."),
+                'code': util_code.COURSE_ID_INVALID
+            }
+            return Response(data, status=status.HTTP_200_OK)
         except Exception as ex:
             log.error(ex)
-            msg = _("Server Error")
-            return Response(msg)
+            data = {
+                'msg': _("Server Error"),
+            }
+            return Response(data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SectionCountView(APIView):
@@ -325,7 +361,7 @@ class SectionCountView(APIView):
         structure = BlockStructure(section_id)
         xblocks = structure.xblocks
         xblocks = filter(lambda x: x.scope_ids.block_type ==
-                         'problem', xblocks)
+                                   'problem', xblocks)
 
         result = {}
         types_list = ["multiplechoiceresponse",
@@ -356,8 +392,11 @@ class SectionCountView(APIView):
             result = map(self.count, section_id)
             return Response(result)
         else:
-            msg = _("Section_id parameter is invalid.")
-            return Response(msg)
+            data = {
+                'msg': _("Section id is invalid."),
+                'code': util_code.SECTION_ID_INVALID
+            }
+            return Response(data, status=status.HTTP_200_OK)
 
 
 class TypeView(APIView):
@@ -429,14 +468,19 @@ class SectionProblemView(APIView):
 
             return Response(data)
 
-        except InvalidKeyError as ex:
-            msg = _("Invalid problem id")
-            return Response(msg)
+        except InvalidKeyError:
+            data = {
+                'msg': _("Problem id is invalid."),
+                'code': util_code.PROBLEM_ID_INVALID
+            }
+            return Response(data, status=status.HTTP_200_OK)
 
         except Exception as ex:
             log.error(ex)
-            msg = _("Server Error")
-            return Response(msg)
+            data = {
+                'msg': _("Server Error")
+            }
+            return Response(data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class DetailView(APIView):
@@ -455,15 +499,22 @@ class DetailView(APIView):
 
         except ItemNotFoundError as ex:
             log.error(ex)
-            msg = _("Invalid Block Key")
-            return Response(msg, status=status.HTTP_200_OK)
+            data = {
+                'msg': _("Invalid Block Key"),
+                'code': util_code.BLOCK_KEY_INVALID
+            }
+            return Response(data, status=status.HTTP_200_OK)
 
-        except InvalidKeyError as ex:
-            log.error(ex)
-            msg = _("Invalid problem id")
-            return Response(msg, status=status.HTTP_200_OK)
+        except InvalidKeyError:
+            data = {
+                'msg': _("Problem id is invalid."),
+                'code': util_code.PROBLEM_ID_INVALID
+            }
+            return Response(data, status=status.HTTP_200_OK)
 
         except Exception as ex:
             log.error(ex)
-            msg = _("Server Error")
-            return Response(msg, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            data = {
+                'msg': _("Server Error")
+            }
+            return Response(data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
