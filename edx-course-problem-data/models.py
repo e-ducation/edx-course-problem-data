@@ -3,8 +3,8 @@ from opaque_keys.edx.keys import CourseKey
 from xmodule.modulestore.django import modulestore
 from collections import deque
 from opaque_keys.edx.locator import BlockUsageLocator, InvalidKeyError
-from xmodule.modulestore.exceptions import ItemNotFoundError, InvalidLocationError
-from util.json_request import JsonResponse
+
+from .exceptions import GetItemError
 
 log = logging.getLogger("mongo.api")
 
@@ -43,24 +43,23 @@ class BlockStructure(object):
     def get_usage_key(self):
         try:
             self.usage_key = BlockUsageLocator._from_string(self.block_id)
-        except InvalidKeyError as ex:
+        except InvalidKeyError:
             self.usage_key = None
 
     def get_xblock(self):
         """
         usage_key is a BlockUsageLocator instance
         """
+        usage_key = self.usage_key
+        if usage_key is None:
+            raise GetItemError
 
         store = modulestore()
-        usage_key = self.usage_key
         with store.bulk_operations(usage_key.course_key):
             try:
                 self.xblock = store.get_item(usage_key, depth=None)
-            except ItemNotFoundError:
-                raise
-            except InvalidLocationError:
-                log.error("Can't find item by location.")
-            return JsonResponse({"error": "Can't find item by location: " + unicode(usage_key)}, 404)
+            except Exception:
+                raise GetItemError
 
     def topological_traversal_BFS(self):
         if self.xblocks is None:
