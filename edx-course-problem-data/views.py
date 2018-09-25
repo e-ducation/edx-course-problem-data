@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 import logging
 
+from django.contrib.auth import get_user_model
 from django.utils.translation import ugettext as _
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.lib.api.authentication import OAuth2AuthenticationAllowInactiveUser
@@ -10,6 +11,8 @@ from openedx.core.lib.api.authentication import OAuth2AuthenticationAllowInactiv
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.viewsets import GenericViewSet
+from rest_framework.mixins import ListModelMixin
 
 from xmodule.modulestore.mongo.draft import DraftModuleStore
 
@@ -18,6 +21,8 @@ from .models import BlockStructure
 from .pagination import BlockNumberPagination
 from .exceptions import GetItemError
 from .parser import ProblemParser
+from .serializers import UserSerializer
+
 
 log = logging.getLogger("exam.api")
 
@@ -409,3 +414,10 @@ class ProblemView(APIView):
             self.result = []
             map(self.to_represent, problems)
             return Response(self.result)
+
+
+class UserViewSet(ListModelMixin, GenericViewSet):
+    authentication_classes = (OAuth2AuthenticationAllowInactiveUser,)
+    serializer_class = UserSerializer
+    queryset = get_user_model().objects.all()
+
