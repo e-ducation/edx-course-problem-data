@@ -108,12 +108,15 @@ class MultipleChoiceResponse(object):
             if answer:
                 answer = answer.replace(' ', '').replace("\n", "").strip()
                 self.problem_data.update({'solution': answer})
+            else:
+                self.problem_data.update({'solution': ''})
 
         title = self.problem_data.get('title', '')
         if title == '':
-            for p in self.xml.xpath('//p', id=self.xml.get('id')):
-                p_text = p.text
-                self.problem_data['title'] = p_text
+            for p in self.xml.xpath('//p'):
+                if p.attrib.get('id') == self.xml.get('id'):
+                    p_text = p.text
+                    self.problem_data['title'] = p_text
 
         return self.problem_data
 
@@ -168,12 +171,15 @@ class ChoiceResponse(object):
             if answer:
                 answer = answer.replace(' ', '').replace("\n", "").strip()
                 self.problem_data.update({'solution': answer})
+            else:
+                self.problem_data.update({'solution': ''})
 
         title = self.problem_data.get('title', '')
         if title == '':
-            for p in self.xml.xpath('//p', id=self.xml.get('id')):
-                p_text = p.text
-                self.problem_data['title'] = p_text
+            for p in self.xml.xpath('//p'):
+                if p.attrib.get('id') == self.xml.get('id'):
+                    p_text = p.text
+                    self.problem_data['title'] = p_text
 
         return self.problem_data
 
@@ -224,12 +230,15 @@ class StringResponse(object):
             if answer:
                 answer = answer.replace(' ', '').replace("\n", "").strip()
                 self.problem_data.update({'solution': answer})
+            else:
+                self.problem_data.update({'solution': ''})
 
         title = self.problem_data.get('title', '')
         if title == '':
-            for p in self.xml.xpath('//p', id=self.xml.get('id')):
-                p_text = p.text
-                self.problem_data['title'] = p_text
+            for p in self.xml.xpath('//p'):
+                if p.attrib.get('id') == self.xml.get('id'):
+                    p_text = p.text
+                    self.problem_data['title'] = p_text
 
         return self.problem_data
 
@@ -315,7 +324,7 @@ class ProblemParser(object):
 
         # 遍历 p 标签
         for ptag in tree.xpath('./p'):
-            ptag_id = self.xblock_id + "_" + str(solution_id)
+            ptag_id = self.xblock_id + "_" + str(p_id)
             ptag.set('id', ptag_id)
             p_id += 1
 

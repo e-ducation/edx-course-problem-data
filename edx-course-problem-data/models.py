@@ -1,8 +1,11 @@
 import logging
-from opaque_keys.edx.keys import CourseKey
-from xmodule.modulestore.django import modulestore
 from collections import deque
+
+from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import BlockUsageLocator, InvalidKeyError
+from xmodule.modulestore.django import modulestore
+from xmodule.modulestore.split_mongo.split_draft import DraftVersioningModuleStore
+from xmodule.modulestore.split_mongo import BlockKey, CourseEnvelope
 
 from .exceptions import GetItemError
 
@@ -11,9 +14,10 @@ log = logging.getLogger("mongo.api")
 
 class BlockStructure(object):
 
-    def __init__(self, block_id_string):
+    def __init__(self, block_id_string, definition_key=None):
         self.block_id_string = block_id_string
         self.block_id = None
+        self.definition_key = definition_key
         self._transform_id()
 
         self.usage_key = None
@@ -78,3 +82,17 @@ class BlockStructure(object):
                         helperList.extend(tempElement.get_children())
         else:
             pass
+
+    def get_version_block(self):
+        store = modulestore()
+
+        for s in store.modulestores:
+            if isinstance(s, DraftVersioningModuleStore):
+                entry = s.get_structure(self.usage_key.course_key, self.definition_key)
+                envelope = CourseEnvelope(self.usage_key.replace(version_guid=self.definition_key), entry)
+
+                block = s._get_block_from_structure(envelope.structure, BlockKey.from_usage_key(self.usage_key))
+
+                return block
+
+        return None
