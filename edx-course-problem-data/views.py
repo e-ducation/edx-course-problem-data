@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 import logging
 
+from bson.objectid import ObjectId
 from django.contrib.auth import get_user_model
 from django.utils.translation import ugettext as _
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
@@ -276,7 +277,7 @@ class DetailView(APIView):
         if 'version' in problem:
             id = problem.get('id', None)
             definition_key = problem.get('version', None)
-            xblock = BlockStructure(id, definition_key)
+            xblock = BlockStructure(id, ObjectId(definition_key))
         else:
             xblock = BlockStructure(problem).xblock
         data = ProblemParser(xblock).get_content()
