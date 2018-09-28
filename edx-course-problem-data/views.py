@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin
+from rest_framework import filters, status
 
 from xmodule.modulestore.mongo.draft import DraftModuleStore
 
@@ -420,4 +421,5 @@ class UserViewSet(ListModelMixin, GenericViewSet):
     authentication_classes = (OAuth2AuthenticationAllowInactiveUser,)
     serializer_class = UserSerializer
     queryset = get_user_model().objects.all()
-
+    filter_backends = (filters.SearchFilter,)
+    search_fields = ('username', 'email')
