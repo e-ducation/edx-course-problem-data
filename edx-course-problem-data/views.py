@@ -273,7 +273,12 @@ class DetailView(APIView):
     authentication_classes = (OAuth2AuthenticationAllowInactiveUser,)
 
     def get_content(self, problem):
-        xblock = BlockStructure(problem).xblock
+        if 'version' in problem:
+            id = problem.get('id', None)
+            definition_key = problem.get('version', None)
+            xblock = BlockStructure(id, definition_key)
+        else:
+            xblock = BlockStructure(problem).xblock
         data = ProblemParser(xblock).get_content()
         return data
 

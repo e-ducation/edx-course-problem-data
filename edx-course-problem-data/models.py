@@ -65,6 +65,9 @@ class BlockStructure(object):
             except Exception:
                 raise GetItemError
 
+        if self.definition_key is not None:
+            self.get_version_block()
+
     def topological_traversal_BFS(self):
         if self.xblocks is None:
 
@@ -86,13 +89,15 @@ class BlockStructure(object):
     def get_version_block(self):
         store = modulestore()
 
+        markdown = None
+
         for s in store.modulestores:
             if isinstance(s, DraftVersioningModuleStore):
                 entry = s.get_structure(self.usage_key.course_key, self.definition_key)
                 envelope = CourseEnvelope(self.usage_key.replace(version_guid=self.definition_key), entry)
 
                 block = s._get_block_from_structure(envelope.structure, BlockKey.from_usage_key(self.usage_key))
+                markdown = block.markdown
 
-                return block
-
-        return None
+        if markdown is not None:
+            self.xblock.markdown = markdown
