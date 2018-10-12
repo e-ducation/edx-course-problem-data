@@ -250,7 +250,6 @@ class ProblemParser(object):
         self.xblock_id = xblock.scope_ids.usage_id._to_string()
         self.problem_id = xblock.scope_ids.usage_id.block_id
         self.markdown = xblock.data
-        self.definition_key = str(xblock.definition_locator.definition_id)
         self.problem_type = ProblemParser.parse_type(xblock.problem_types)
 
         # Convert startouttext and endouttext to proper <text></text>
@@ -385,7 +384,7 @@ class ProblemParser(object):
             data.update({
                 'id': responsetype_id if len(questions) > 1 else self.xblock_id,
                 'type': self.problem_type,
-                'version': self.definition_key
+                'version': str(self.xblock.definition_locator.definition_id)
             })
 
         elif self.problem_type == "choiceresponse":
@@ -394,7 +393,7 @@ class ProblemParser(object):
             data.update({
                 'id': responsetype_id if len(questions) > 1 else self.xblock_id,
                 'type': self.problem_type,
-                'version': self.definition_key
+                'version': str(self.xblock.definition_locator.definition_id)
             })
 
         elif self.problem_type == "stringresponse":
@@ -403,7 +402,7 @@ class ProblemParser(object):
             data.update({
                 'id': responsetype_id if len(questions) > 1 else self.xblock_id,
                 'type': self.problem_type,
-                'version': self.definition_key
+                'version': str(self.xblock.definition_locator.definition_id)
             })
 
         # 过滤题型
