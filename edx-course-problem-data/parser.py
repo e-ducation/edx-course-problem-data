@@ -383,7 +383,8 @@ class ProblemParser(object):
             data = res.get_answers()
             data.update({
                 'id': responsetype_id if len(questions) > 1 else self.xblock_id,
-                'type': self.problem_type
+                'type': self.problem_type,
+                'version': str(self.xblock.definition_locator.definition_id)
             })
 
         elif self.problem_type == "choiceresponse":
@@ -391,7 +392,8 @@ class ProblemParser(object):
             data = res.get_answers()
             data.update({
                 'id': responsetype_id if len(questions) > 1 else self.xblock_id,
-                'type': self.problem_type
+                'type': self.problem_type,
+                'version': str(self.xblock.definition_locator.definition_id)
             })
 
         elif self.problem_type == "stringresponse":
@@ -399,7 +401,8 @@ class ProblemParser(object):
             data = res.get_answers()
             data.update({
                 'id': responsetype_id if len(questions) > 1 else self.xblock_id,
-                'type': self.problem_type
+                'type': self.problem_type,
+                'version': str(self.xblock.definition_locator.definition_id)
             })
 
         # 过滤题型

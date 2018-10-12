@@ -24,7 +24,6 @@ from .exceptions import GetItemError
 from .parser import ProblemParser
 from .serializers import UserSerializer
 
-
 log = logging.getLogger("exam.api")
 
 
@@ -68,14 +67,14 @@ class SectionView(APIView):
 
     def has_problem(self, xblock):
         structure = BlockStructure(xblock.scope_ids.usage_id._to_string())
-        xblocks = structure.xblocks
+        xblocks = structure.get_xblocks()
         results = filter(lambda x: x.scope_ids.block_type == "problem", xblocks)
 
         return len(results) > 0
 
     def count(self, xblock_id):
         structure = BlockStructure(xblock_id)
-        xblocks = structure.xblocks
+        xblocks = structure.get_xblocks()
         xblocks = filter(lambda x: x.scope_ids.block_type == 'problem', xblocks)
 
         result = {}
@@ -107,7 +106,7 @@ class SectionView(APIView):
 
         try:
             course = BlockStructure(course_id)
-            xblocks = course.xblocks
+            xblocks = course.get_xblocks()
 
             # each xblock has block_type
             results = filter(lambda x: x.scope_ids.block_type == "sequential", xblocks)
@@ -134,6 +133,68 @@ class SectionView(APIView):
             return Response(data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class SectionProblemView(APIView):
+    """
+    - 章节题目列表
+    """
+
+    authentication_classes = (OAuth2AuthenticationAllowInactiveUser,)
+
+    def get_problem(self, section):
+
+        structure = BlockStructure(section)
+        xblocks = structure.get_xblocks()
+        xblocks = filter(
+            lambda x: x.scope_ids.block_type == 'problem', xblocks)
+
+        problems = dict()
+        problems[section] = {}
+
+        for ptype in self.types:
+            s = set()
+            s.add(ptype)
+
+            result = filter(lambda x: hasattr(x, 'problem_types') and x.problem_types == s, xblocks)
+            id_list = [xblock.scope_ids.usage_id._to_string() for xblock in result]
+
+            data = {}
+            data[ptype] = id_list
+            problems[section].update(data)
+
+        return problems
+
+    def post(self, request, *args, **kwargs):
+
+        section_list = request.data.get('sections', [])
+        types = request.data.get('types', [])
+
+        self.types = types
+
+        try:
+            results = map(self.get_problem, section_list)
+
+            # output format transform
+            data = {}
+            for value in results:
+                data[value.keys()[0]] = value.values()[0]
+
+            return Response(data)
+
+        except GetItemError:
+            data = {
+                'msg': _("Problem id is invalid."),
+                'code': util_code.PROBLEM_ID_INVALID
+            }
+            return Response(data, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as ex:
+            log.error(ex)
+            data = {
+                'msg': _("Server Error")
+            }
+            return Response(data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class SectionCountView(APIView):
     """
     章节各题型的题目数量
@@ -143,7 +204,7 @@ class SectionCountView(APIView):
 
     def count(self, section_id):
         structure = BlockStructure(section_id)
-        xblocks = structure.xblocks
+        xblocks = structure.get_xblocks()
         xblocks = filter(lambda x: x.scope_ids.block_type == 'problem', xblocks)
 
         result = {}
@@ -205,98 +266,6 @@ class TypeView(APIView):
         ]
 
         return Response(type_list)
-
-
-class SectionProblemView(APIView):
-    """
-    - 章节题目列表
-    """
-
-    authentication_classes = (OAuth2AuthenticationAllowInactiveUser,)
-
-    def get_problem(self, section):
-
-        structure = BlockStructure(section)
-        xblocks = structure.xblocks
-        xblocks = filter(
-            lambda x: x.scope_ids.block_type == 'problem', xblocks)
-
-        problems = dict()
-        problems[section] = {}
-
-        for ptype in self.types:
-            s = set()
-            s.add(ptype)
-
-            result = filter(lambda x: hasattr(x, 'problem_types') and x.problem_types == s, xblocks)
-            id_list = [xblock.scope_ids.usage_id._to_string() for xblock in result]
-
-            data = {}
-            data[ptype] = id_list
-            problems[section].update(data)
-
-        return problems
-
-    def post(self, request, *args, **kwargs):
-
-        section_list = request.data.get('sections', [])
-        types = request.data.get('types', [])
-
-        self.types = types
-
-        try:
-            results = map(self.get_problem, section_list)
-
-            # output format transform
-            data = {}
-            for value in results:
-                data[value.keys()[0]] = value.values()[0]
-
-            return Response(data)
-
-        except GetItemError:
-            data = {
-                'msg': _("Problem id is invalid."),
-                'code': util_code.PROBLEM_ID_INVALID
-            }
-            return Response(data, status=status.HTTP_400_BAD_REQUEST)
-
-        except Exception as ex:
-            log.error(ex)
-            data = {
-                'msg': _("Server Error")
-            }
-            return Response(data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-class DetailView(APIView):
-    authentication_classes = (OAuth2AuthenticationAllowInactiveUser,)
-
-    def get_content(self, problem):
-        xblock = BlockStructure(problem).xblock
-        data = ProblemParser(xblock).get_content()
-        return data
-
-    def post(self, request, *args, **kwargs):
-        try:
-            problem_list = request.data.get('problems', [])
-            results = map(self.get_content, problem_list)
-            return Response(results)
-
-        except GetItemError as ex:
-            log.error(ex)
-            data = {
-                'msg': _("Invalid Block Key"),
-                'code': util_code.BLOCK_KEY_INVALID
-            }
-            return Response(data, status=status.HTTP_400_BAD_REQUEST)
-
-        except Exception as ex:
-            log.error(ex)
-            data = {
-                'msg': _("Server Error")
-            }
-            return Response(data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ProblemView(APIView):
@@ -361,7 +330,7 @@ class ProblemView(APIView):
 
         try:
             structure = BlockStructure(block_id)
-            xblocks = structure.xblocks
+            xblocks = structure.get_xblocks()
         except GetItemError as ex:
             log.error(ex)
             data = {
@@ -415,6 +384,41 @@ class ProblemView(APIView):
             self.result = []
             map(self.to_represent, problems)
             return Response(self.result)
+
+
+class DetailView(APIView):
+    authentication_classes = (OAuth2AuthenticationAllowInactiveUser,)
+
+    def get_content(self, problem):
+        if isinstance(problem, dict):
+            block_id = problem.get('id', '')
+            version = problem.get('version', '')
+            xblock = BlockStructure(block_id, version).xblock
+        else:
+            xblock = BlockStructure(problem).xblock
+        data = ProblemParser(xblock).get_content()
+        return data
+
+    def post(self, request, *args, **kwargs):
+        try:
+            problem_list = request.data.get('problems', [])
+            results = map(self.get_content, problem_list)
+            return Response(results)
+
+        except GetItemError as ex:
+            log.error(ex)
+            data = {
+                'msg': _("Invalid Block Key"),
+                'code': util_code.BLOCK_KEY_INVALID
+            }
+            return Response(data, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as ex:
+            log.error(ex)
+            data = {
+                'msg': _("Server Error")
+            }
+            return Response(data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class UserViewSet(ListModelMixin, GenericViewSet):
